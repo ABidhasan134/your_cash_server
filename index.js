@@ -43,6 +43,8 @@ const client = new MongoClient(uri, {
 
   async function run() {
     try {
+      const database=client.db('MobileFinancialService(MFS)');
+      const userCollation = database.collection('users');
       // Connect the client to the server	(optional starting in v4.7)
       await client.connect();
       // Send a ping to confirm a successful connection
@@ -56,6 +58,18 @@ const client = new MongoClient(uri, {
         res.cookie('token',token,cookieOptions).send({ success: 'true'});
       })
   
+      app.post('/createUser',async(req,res)=>{
+        const userInfo = req.body;
+        // or is use for multiple search
+      const query = { email: userInfo.email};
+      const result = await userCollation.findOne(query);
+      if (result) {
+        console.log(result);
+        return res.status(400).send("User already exists");
+      }
+      
+      console.log(userInfo.name);
+      })
 
     } finally {
       // Ensures that the client will close when you finish/error
