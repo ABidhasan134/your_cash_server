@@ -6,6 +6,7 @@ const jwt = require('jsonwebtoken');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const { MongoClient, ServerApiVersion } = require('mongodb');
+const bcrypt = require('bcrypt'); // Add bcrypt for password hashing
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@cluster0.il352b3.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 const client = new MongoClient(uri, {
@@ -24,53 +25,48 @@ app.use(cors({
   credentials: true,
 }));
 
-// Middleware to verify user
-const verifyToken = (req, res, next) => {
-  const token = req.cookies.token;
-  if (!token) {
-    return res.status(403).send("A token is required for authentication");
-  }
-  try {
-    const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
-    req.user = decoded;
-  } catch (err) {
-    return res.status(401).send("Invalid Token");
-  }
-  return next();
-};
-
 const cookieOptions = {
   httpOnly: true,
   secure: process.env.NODE_ENV === "production",
   sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
 };
 
+// Connect to MongoDB and set up routes
 async function run() {
   try {
-    // Connect to MongoDB
     await client.connect();
     console.log("Connected to MongoDB!");
 
     const database = client.db('MobileFinancialService(MFS)');
     const userCollation = database.collection('users');
 
-    // Routes
-    app.post('/jwt', async (req, res) => {
-      const user = req.body;
-      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '1h' });
-      res.cookie('token', token, cookieOptions).send({ success: 'true' });
-    });
-
     app.post('/createUser', async (req, res) => {
       const userInfo = req.body;
-      const query = { $or: [{ email: userInfo.email }, { phone: userInfo.phone }] };
+      console.log(userInfo)
+      const query = { email: userInfo.email};
       const result = await userCollation.findOne(query);
-      if (result) {
-        console.log("this is the result you get",result);
-        return res.status(400).send("User already exists");
+      console.log(result)
+      if (result===null) {
+        userInfo.password = await bcrypt.hash(userInfo.password, 10); // Hash the password
+        const insertResult = await userCollation.insertOne(userInfo);
+        return res.status(201).send(insertResult);
       }
-      const insertResult = await userCollation.insertOne(userInfo);
-      res.status(201).send(insertResult);
+      return res.status(400).send("User already exists");
+    });
+
+    app.post('/login', async (req, res) => {
+      const { email, password } = req.body;
+      const query = { $or: [{ email }, { phone: email }] };
+      const user = await userCollation.findOne(query);
+      if (!user) {
+        return res.status(404).send("User not found");
+      }
+      const isPasswordValid = await bcrypt.compare(password, user.password);
+      if (!isPasswordValid) {
+        return res.status(403).send("Invalid credentials");
+      }
+      const token = jwt.sign({ id: user._id, email: user.email }, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '1h' });
+      res.cookie('token', token, cookieOptions).send({ success: true });
     });
 
     app.get('/', (req, res) => {
@@ -83,7 +79,6 @@ async function run() {
   }
 }
 
-// Start the server and MongoDB connection
 run();
 
 app.listen(port, () => {
