@@ -49,25 +49,36 @@ async function run() {
       if (result===null) {
         userInfo.password = await bcrypt.hash(userInfo.password, 10); // Hash the password
         const insertResult = await userCollation.insertOne(userInfo);
-        return res.status(201).send(insertResult);
+        const token = jwt.sign({ id: insertResult._id, email: insertResult.email }, process.env.ACCESS_TOKEN, { expiresIn: '1h' });
+        return res.status(201).cookie('token', token, cookieOptions).send(insertResult);
       }
       return res.status(400).send("User already exists");
     });
 
-    app.post('/login', async (req, res) => {
-      const { email, password } = req.body;
-      const query = { $or: [{ email }, { phone: email }] };
-      const user = await userCollation.findOne(query);
-      if (!user) {
-        return res.status(404).send("User not found");
-      }
-      const isPasswordValid = await bcrypt.compare(password, user.password);
-      if (!isPasswordValid) {
-        return res.status(403).send("Invalid credentials");
-      }
-      const token = jwt.sign({ id: user._id, email: user.email }, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '1h' });
-      res.cookie('token', token, cookieOptions).send({ success: true });
-    });
+    // Modify the '/login' route to include JWT token in the response.
+app.post('/login', async (req, res) => {
+  const { email, password } = req.body;
+  const query = { $or: [{ email }, { phone: email }] };
+  const user = await userCollation.findOne(query);
+  if (!user) {
+    return res.status(404).send("User not found");
+  }
+  const isPasswordValid = await bcrypt.compare(password, user.password);
+  if (!isPasswordValid) {
+    return res.status(403).send("Invalid credentials");
+  }
+  
+  res.send(user);
+});
+
+// Update the '/jwt' route to properly return the token.
+app.get('/jwt', async (req, res) => {
+  const user = req.body;
+  console.log("user is here",user)
+  // const token =jwt.sign({user}) 
+
+  }
+);
 
     app.get('/', (req, res) => {
       res.send("my money is in cash ");
