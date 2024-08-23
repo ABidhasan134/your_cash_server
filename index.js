@@ -23,9 +23,12 @@ app.use(cookieParser());
 app.use(
   cors({
     origin: "http://localhost:5173",
-    credentials: true,
+    credentials: true, 
   })
 );
+
+app.options("*", cors());
+
 
 const cookieOptions = {
   httpOnly: true,
@@ -34,20 +37,19 @@ const cookieOptions = {
 };
 
 // midelwire 
-const varifyToken=((req,res,next)=>{
-  const token=req?.cookies?.token;
-  if(!token){
-    res.status(401).send({massege: "unarthorize access"})
+const verifyToken = (req, res, next) => {
+  const token = req?.cookies?.token;
+  if (!token) {
+    return res.status(401).send({ message: "Unauthorized access" });
   }
-  jwt.verify(token,process.env.ACCESS_TOKEN,(err,decoded)=>{
-    if(err){
-      res.status(401).send({massege: "unarthorize access"})
+  jwt.verify(token, process.env.ACCESS_TOKEN, (err, decoded) => {
+    if (err) {
+      return res.status(401).send({ message: "Unauthorized access" });
     }
-    req.user=decoded;
+    req.user = decoded;
     next();
-  })
-
-})
+  });
+};
 
 // Connect to MongoDB and set up routes
 async function run() {
@@ -61,10 +63,8 @@ async function run() {
     // Update the '/jwt' route to properly return the token.
     app.post("/jwt", async (req, res) => {
       const user = req.body;
-      console.log("user is here", user);
-      const token =jwt.sign(user, process.env.ACCESS_TOKEN,{ expiresIn: "1h" })
+      const token = jwt.sign(user, process.env.ACCESS_TOKEN, { expiresIn: "1h" });
       return res.cookie("token", token, cookieOptions).send(token);
-
     });
 
     app.post("/createUser", async (req, res) => {
@@ -92,7 +92,8 @@ async function run() {
     // Modify the '/login' route to include JWT token in the response.
     app.post("/login", async (req, res) => {
       const { email, password } = req.body;
-      const query = { $or: [{ email }, { phone: email }] };
+      // console.log(req.body);
+      const query = { $or: [{ email }, { phoneNumber: email }] };
       const user = await userCollation.findOne(query);
       if (!user) {
         return res.status(404).send("User not found");
@@ -104,6 +105,16 @@ async function run() {
 
       res.send(user);
     });
+
+    app.get("/users/:email",verifyToken, async (req, res) => {
+      const email=req.params.email;
+      // console.log(email);
+      // console.log("hit it")
+      const query={email:email}
+      const result= await userCollation.findOne(query);
+      res.send(result)
+      console.log('The result to user',result)
+    })
 
     app.get("/", (req, res) => {
       res.send("my money is in cash ");
