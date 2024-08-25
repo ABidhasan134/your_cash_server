@@ -113,7 +113,30 @@ async function run() {
       const query={email:email}
       const result= await userCollation.findOne(query);
       res.send(result)
-      console.log('The result to user',result)
+      // console.log('The result to user',result)
+    })
+
+    app.post("/sendMoney",async (req, res) => {
+      const info= req.body;
+      const query={phoneNumber:info.sendernumber};
+      const password= info.password;
+      if(info.sendernumber===info.phone){
+        res.send({error:"enter a valid number"})
+      }
+      const senderResult = await userCollation.findOne(query);
+      const reciverResult = await userCollation.findOne(query);
+      if(senderResult.amount<info.amount){
+        res.status(403).send({error: "You don't have enough amount to send"});
+      }
+      // comearing 
+      // const isPasswordValid = await bcrypt.compare( password,result.password)
+      // console.log(isPasswordValid)
+      // console.log(result.password);
+      // if(isPasswordValid){
+      //   console.log("Fill the condition ",result);
+      // }
+      // console.log(info);
+      console.log("sender Result is here",senderResult);
     })
 
     app.get("/", (req, res) => {
