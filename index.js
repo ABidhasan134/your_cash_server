@@ -116,27 +116,59 @@ async function run() {
       // console.log('The result to user',result)
     })
 
-    app.post("/sendMoney",async (req, res) => {
+    app.patch("/sendMoney",async (req, res) => {
       const info= req.body;
-      const query={phoneNumber:info.sendernumber};
+      const query1={phoneNumber:info.sendernumber};
+      const query2={phoneNumber: info.phone};
       const password= info.password;
+      const senderResult = await userCollation.findOne(query1);
+      const reciverResult = await userCollation.findOne(query2);
+      if(!reciverResult){
+        res.send({error: "NotFound"})
+      }
       if(info.sendernumber===info.phone){
         res.send({error:"enter a valid number"})
       }
-      const senderResult = await userCollation.findOne(query);
-      const reciverResult = await userCollation.findOne(query);
       if(senderResult.amount<info.amount){
-        res.status(403).send({error: "You don't have enough amount to send"});
+        res.send({error: "NotHaveEnoughMoney"}).status(403);
       }
       // comearing 
-      // const isPasswordValid = await bcrypt.compare( password,result.password)
+      const isPasswordValid = await bcrypt.compare( password,senderResult.password)
       // console.log(isPasswordValid)
-      // console.log(result.password);
-      // if(isPasswordValid){
-      //   console.log("Fill the condition ",result);
-      // }
-      // console.log(info);
-      console.log("sender Result is here",senderResult);
+      // console.log(senderResult.password);
+      if(!isPasswordValid){
+        console.log("Fill the condition ",senderResult);
+        res.send({error: "InvalidPassword"}).status(403);
+      }
+      // console.log(reciverResult);
+      if(reciverResult.status!=="ok" || senderResult.status!=="ok")
+      {
+        res.send({error: "NotAvalidUser"}).status(403);
+        return
+      }
+      if(info.amount<10){
+        res.send({error: "balance"}).status(403);
+        return
+      }
+      // console.log(parseInt(info.amount)+parseInt(reciverResult.amount));
+      // reciver doc update
+      const reciverUpdateDoc={
+        $set:{    
+        amount:parseInt(info.amount)+parseInt(reciverResult.amount),
+        }
+      }
+      // sender doc update
+      const senderUpdateResultDoc={
+        $set:{
+          amount:parseInt(senderResult.amount)-parseInt(info.amount),
+        }
+      }
+      // patch request
+      const reciverUpdateResult=await userCollation.updateOne(reciverResult,reciverUpdateDoc);
+      const senderUpdateResult= await userCollation.updateOne(senderResult,senderUpdateResultDoc);
+      res.send(reciverUpdateResult);
+      // console.log(senderUpdateResult);
+      // console.log("sender Result is here",senderResult);
     })
 
     app.get("/", (req, res) => {
