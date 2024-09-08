@@ -32,13 +32,14 @@ app.options("*", cors());
 
 const cookieOptions = {
   httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
+  secure: process.env.NODE_ENV === "production"?true:false,
   sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+  expires: new Date(Date.now() + 1 * 3600000) // 1 hours
 };
 
 // midelwire 
 const verifyToken = (req, res, next) => {
-  const token = req?.cookies?.token;
+  const token = req?.cookies?.your_cash;
   if (!token) {
     return res.status(401).send({ message: "Unauthorized access" });
   }
@@ -63,9 +64,10 @@ async function run() {
     // Update the '/jwt' route to properly return the token.
     app.post("/jwt", async (req, res) => {
       const user = req.body;
-      const token = jwt.sign(user, process.env.ACCESS_TOKEN, { expiresIn: "1h" });
-      return res.cookie("token", token, cookieOptions).send(token);
+      const token = jwt.sign(user, process.env.ACCESS_TOKEN, { expiresIn: '1h' });
+      return res.cookie("your_cash", token, cookieOptions).send({ token });
     });
+    
 
     app.post("/createUser", async (req, res) => {
       const userInfo = req.body;
@@ -120,17 +122,22 @@ async function run() {
       const info= req.body;
       const query1={phoneNumber:info.sendernumber};
       const query2={phoneNumber: info.phone};
+      // console.log("sender",query1,"Reciver",query2);
       const password= info.password;
       const senderResult = await userCollation.findOne(query1);
       const reciverResult = await userCollation.findOne(query2);
+      // console.log("sender info",senderResult)
       if(!reciverResult){
         res.send({error: "NotFound"})
+        return
       }
       if(info.sendernumber===info.phone){
         res.send({error:"enter a valid number"})
+        return
       }
       if(senderResult.amount<info.amount){
         res.send({error: "NotHaveEnoughMoney"}).status(403);
+        return
       }
       // comearing 
       const isPasswordValid = await bcrypt.compare( password,senderResult.password)
@@ -139,6 +146,7 @@ async function run() {
       if(!isPasswordValid){
         console.log("Fill the condition ",senderResult);
         res.send({error: "InvalidPassword"}).status(403);
+        return
       }
       // console.log(reciverResult);
       if(reciverResult.status!=="ok" || senderResult.status!=="ok")
