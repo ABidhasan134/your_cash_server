@@ -7,6 +7,7 @@ const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const { MongoClient, ServerApiVersion } = require("mongodb");
 const bcrypt = require("bcrypt"); // Add bcrypt for password hashing
+const { uuid } = require('uuidv4');
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@cluster0.il352b3.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 const client = new MongoClient(uri, {
@@ -33,6 +34,7 @@ app.options("*", cors());
 const cookieOptions = {
   httpOnly: true,
   secure: process.env.NODE_ENV === "production"?true:false,
+  maxAge: 3600000,
   sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
   expires: new Date(Date.now() + 1 * 3600000) // 1 hours
 };
@@ -144,7 +146,8 @@ async function run() {
       // console.log(isPasswordValid)
       // console.log(senderResult.password);
       if(!isPasswordValid){
-        console.log("Fill the condition ",senderResult);
+        // console.log("Fill the condition ",senderResult);
+        // console.log(date.toISOString().split('T')[0] , date.toISOString().split('T')[1].split(".")[0]);
         res.send({error: "InvalidPassword"}).status(403);
         return
       }
@@ -160,11 +163,7 @@ async function run() {
       }
       // console.log(parseInt(info.amount)+parseInt(reciverResult.amount));
       // reciver doc update
-      const reciverUpdateDoc={
-        $set:{    
-        amount:parseInt(info.amount)+parseInt(reciverResult.amount),
-        }
-      }
+     
       // sender doc update
       const senderUpdateResultDoc={
         $set:{
@@ -172,6 +171,23 @@ async function run() {
         }
       }
       // patch request
+      const date= new Date();
+        // date.toISOString().split('T')[0]; 
+        const sendDate=date.toISOString().split('T')[0]
+        const sendTime=date.toISOString().split('T')[1].split(".")[0]
+        const sendAmout=info.amount;
+        const sendPhoneNumber=info.sendernumber;
+        const senderhistory={history_amount:sendAmout,history_time:sendTime,history_date:sendDate,history_phone:sendPhoneNumber,trangistion_id:uuid()}
+        const updateHistory=[...reciverResult.history,senderhistory];
+        if(updateHistory.length>5){
+          updateHistory.shift();
+        }
+        const reciverUpdateDoc={
+          $set:{    
+          amount:parseInt(info.amount)+parseInt(reciverResult.amount),
+          history:updateHistory,
+          }
+        }
       const reciverUpdateResult=await userCollation.updateOne(reciverResult,reciverUpdateDoc);
       const senderUpdateResult= await userCollation.updateOne(senderResult,senderUpdateResultDoc);
       res.send(reciverUpdateResult);
